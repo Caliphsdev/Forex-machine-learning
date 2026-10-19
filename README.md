@@ -86,3 +86,7 @@ can be swapped without touching the rest.
 - **Notebooks explore, `src/` decides.** When something works in a notebook it moves into the package
   with a test. Use `%load_ext autoreload` and `%autoreload 2` at the top of a notebook so edits to
   `src/` are picked up.
+
+## Licence
+
+MIT, see [LICENSE](LICENSE).
