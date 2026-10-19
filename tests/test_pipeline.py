@@ -6,7 +6,7 @@ from fxml.db.connection import connect
 from fxml.db.repository import load_fold_metrics, load_runs, save_bars
 from fxml.db.schema import init_db
 from fxml.training.experiment import Settings
-from fxml.training.pipeline import ExperimentPlan, run_experiment
+from fxml.training.pipeline import ExperimentPlan, run_experiment, run_experiment_detailed
 from tests.test_builder import make_bars
 
 CPU = torch.device("cpu")
@@ -54,3 +54,22 @@ def test_recorded_spread_is_used_when_no_flat_cost_is_given(conn):
 def test_empty_date_range_raises(conn):
     with pytest.raises(ValueError):
         run_experiment(conn, plan(start="2030-01-01"), SETTINGS, device=CPU, verbose=False)
+
+def test_each_symbol_uses_its_own_point_size_for_the_cost(conn):
+    save_bars(conn, "USDJPY", "H1", make_bars(1200, scale=100.0))  # prices near 110, 7 points
+    summary = run_experiment(conn, plan(symbol="USDJPY"), SETTINGS, device=CPU, verbose=False)
+    cost_bps = summary["gross_bps_per_trade"] - summary["net_bps_per_trade"]
+    assert 0.4 < cost_bps < 0.9  # 7 * 0.001 / 110 = 0.64 bps; a 1e-5 point would give 0.006
+
+
+def test_symbol_without_a_point_size_raises(conn):
+    save_bars(conn, "XYZABC", "H1", make_bars(1200))
+    with pytest.raises(ValueError):
+        run_experiment(conn, plan(symbol="XYZABC"), SETTINGS, device=CPU, verbose=False)
+
+def test_detailed_outcome_is_consistent_with_the_summary(conn):
+    outcome = run_experiment_detailed(conn, plan(flat_cost_bps=0.8), SETTINGS, device=CPU,
+                                      verbose=False)
+    assert outcome.per_bar.index.equals(outcome.predictions.index)
+    assert outcome.per_bar.sum() == pytest.approx(outcome.summary["total_return"])
+    assert outcome.summary["run_id"] >= 1

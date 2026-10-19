@@ -8,7 +8,9 @@ written down *before* the experiment ran.
 **Short answer (details in [docs/findings.md](docs/findings.md)):** direction has a tiny real edge
 (about 51.5% accuracy) that does not survive retail trading costs; volatility, by contrast, is
 clearly predictable (out-of-sample R2 of about 0.35-0.39) but did not turn the strategy
-profitable. This is research code, not a trading system and not financial advice.
+profitable. Diversifying the same method across six pairs did not rescue it either (portfolio net
+Sharpe -0.82 against a pre-set bar of 0.6). This is research code, not a trading system and not
+financial advice.
 
 ## Requirements
 
@@ -27,7 +29,7 @@ python -m pip install --upgrade pip
 pip install torch --index-url https://download.pytorch.org/whl/cu128   # GPU build, installed separately
 pip install -r requirements.txt                                        # or requirements.lock.txt for exact versions
 pip install -e .                                                       # makes `import fxml` work everywhere
-pytest                                                                 # 124 tests should pass
+pytest                                                                 # 131 tests should pass
 ```
 
 `requirements.lock.txt` is a full `pip freeze` of the environment this was built in (without torch,
@@ -58,11 +60,12 @@ src/fxml/
   datasets/          modelling tables, walk-forward splits, scaler, PyTorch window dataset
   models/            two-headed LSTM, linear baseline, model registry
   training/          trainer, one-fold run, walk-forward runner, baselines, full pipeline
-  evaluation/        metrics, cost-aware backtest, charts
+  evaluation/        metrics, cost-aware backtest, multi-pair portfolio, charts
 scripts/             command-line entry points (init_db, download_data, train) and throwaway probes
 notebooks/           01 data check, 02 feature diagnostics, 03 first fold, 04 horizon study,
-                     05 confirmation run, 06 volatility, 07 volatility filter
-tests/               124 tests, written before the code they cover
+                     05 confirmation run, 06 volatility, 07 volatility filter, 08 cost screen,
+                     09 breadth test across six pairs
+tests/               131 tests, written before the code they cover
 docs/findings.md     what was tried and what was found
 ```
 

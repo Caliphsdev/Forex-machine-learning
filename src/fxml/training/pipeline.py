@@ -9,7 +9,7 @@ from fxml import config
 from fxml.datasets.splits import walk_forward_splits
 from fxml.datasets.table import build_table
 from fxml.db.repository import load_bars, save_run
-from fxml.evaluation.backtest import BPS, backtest, spread_cost
+from fxml.evaluation.backtest import BPS, BacktestResult, backtest, spread_cost
 from fxml.training.experiment import Settings, run_walk_forward
 
 
@@ -29,10 +29,18 @@ class ExperimentPlan:
     notes: str = ""
 
 
-def run_experiment(conn: sqlite3.Connection, plan: ExperimentPlan,
-                   settings: Settings = Settings(), device: torch.device | None = None,
-                   verbose: bool = True) -> dict:
-    """Load bars, run the walk-forward, backtest with costs, save the run; return its summary."""
+@dataclass
+class ExperimentOutcome:
+    summary: dict               # what is stored in SQLite, plus run_id
+    backtest: BacktestResult
+    predictions: pd.DataFrame   # every out-of-sample bar
+    per_bar: pd.Series          # net return per bar, capital shared across the horizon
+
+
+def run_experiment_detailed(conn: sqlite3.Connection, plan: ExperimentPlan,
+                            settings: Settings = Settings(), device: torch.device | None = None,
+                            verbose: bool = True) -> ExperimentOutcome:
+    """Load bars, run the walk-forward, backtest with costs, save the run; return everything."""
     bars = load_bars(conn, plan.symbol, plan.timeframe, start=plan.start, end=plan.end)
     if bars.empty:
         raise ValueError(f"No {plan.symbol} {plan.timeframe} bars from {plan.start} to {plan.end}")
@@ -44,7 +52,9 @@ def run_experiment(conn: sqlite3.Connection, plan: ExperimentPlan,
     predictions = wf.predictions
     threshold = (predictions["prob_up"] - 0.5).abs().quantile(plan.confidence_quantile)
     if plan.flat_cost_bps is None:
-        cost = spread_cost(bars, config.POINT_SIZE)
+        if plan.symbol not in config.POINT_SIZES:
+            raise ValueError(f"Add {plan.symbol} to config.POINT_SIZES (1 point in price units)")
+        cost = spread_cost(bars, config.POINT_SIZES[plan.symbol])
     else:
         cost = pd.Series(plan.flat_cost_bps / BPS, index=predictions.index)
     result = backtest(predictions, cost, threshold, settings.horizon)
@@ -63,4 +73,12 @@ def run_experiment(conn: sqlite3.Connection, plan: ExperimentPlan,
     run_id = save_run(conn, plan.name, plan.symbol, plan.timeframe,
                       {"settings": asdict(settings), "plan": asdict(plan)},
                       metrics, summary=summary, notes=plan.notes)
-    return {"run_id": run_id, **summary}
+    per_bar = result.trades["net"] / settings.horizon
+    return ExperimentOutcome({"run_id": run_id, **summary}, result, predictions, per_bar)
+
+
+def run_experiment(conn: sqlite3.Connection, plan: ExperimentPlan,
+                   settings: Settings = Settings(), device: torch.device | None = None,
+                   verbose: bool = True) -> dict:
+    """Like run_experiment_detailed, but returns only the summary dict."""
+    return run_experiment_detailed(conn, plan, settings, device, verbose).summary
