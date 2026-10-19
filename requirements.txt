@@ -1,0 +1,10 @@
+# NOTE: torch is installed separately (CUDA build), see README
+numpy
+pandas
+scikit-learn
+matplotlib
+MetaTrader5
+jupyterlab
+ipykernel
+pytest
+seaborn
