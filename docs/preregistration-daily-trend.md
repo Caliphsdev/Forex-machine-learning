@@ -63,3 +63,6 @@ The forward bars are the real test. Demo-account spreads; positive results are a
    spread is 1.3x (EURUSD) to 2.8x (GBPJPY) the all-day median.
 3. Portfolio volatility scaling is specified as above.
 4. Only a final incomplete day is dropped.
+5. A recorded fill-bar spread of zero is treated as a data gap (it affects up to 1.6% of
+   EURUSD and GBPUSD fills). Zeros and all pre-2015 days use the median of the positive
+   recorded spreads from 2015 on, per pair.
